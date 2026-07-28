@@ -20,6 +20,10 @@ execute_process(COMMAND lcov
     --base-directory ${CMAKE_BINARY_DIR}
     --initial
     --capture
+    # lcov 2.x promotes "cannot open <source>" (e.g. CMakeCCompilerId.c) and an
+    # empty trace file from warnings to fatal errors; tolerate both so the
+    # baseline capture still produces base_coverage.info.
+    --ignore-errors source,empty
     --rc lcov_branch_coverage=1
     --rc genhtml_branch_coverage=1
     --output-file=${CMAKE_BINARY_DIR}/base_coverage.info
@@ -48,6 +52,7 @@ execute_process(COMMAND ruby
 # capture data after running the tests
 execute_process(COMMAND lcov
     --capture
+    --ignore-errors source,empty
     --rc lcov_branch_coverage=1
     --rc genhtml_branch_coverage=1
     --base-directory ${CMAKE_BINARY_DIR}
@@ -62,7 +67,10 @@ execute_process(COMMAND lcov
     --add-tracefile ${CMAKE_BINARY_DIR}/base_coverage.info
     --add-tracefile ${CMAKE_BINARY_DIR}/second_coverage.info
     --output-file ${CMAKE_BINARY_DIR}/coverage.info
-    --no-external
+    # --no-external is ignored outside of --capture in lcov 2.x (it warns and
+    # is a no-op here); external/system paths are already stripped by the
+    # --remove step below. Tolerate an empty tracefile so the merge still runs.
+    --ignore-errors empty
     --rc lcov_branch_coverage=1
 )
 
@@ -71,6 +79,11 @@ execute_process(COMMAND lcov
     --rc lcov_branch_coverage=1
     --remove ${CMAKE_BINARY_DIR}/coverage.info *dependency* *unit-test* /usr* */source/ota.c *CMakeCCompilerId* */source/portable/os/ota_os_posix.c
     --output-file ${CMAKE_BINARY_DIR}/coverage.info
+    # lcov 2.x promotes an "unused" warning (a --remove pattern that matches no
+    # records, e.g. *CMakeCCompilerId* or /usr* when nothing leaked) to a fatal
+    # error, which would abort before coverage.info is rewritten. Tolerate it so
+    # the remove step always produces the final coverage.info.
+    --ignore-errors unused
 )
 
 # generate html report
